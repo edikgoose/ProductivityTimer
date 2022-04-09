@@ -1,6 +1,6 @@
 package eduard.zaripov.productivitytimer
 
-data class Time(var minutes: Int = 0, var seconds: Int = 0, var limitSeconds: Int = Int.MAX_VALUE) {
+data class Timer(var minutes: Int = 0, var seconds: Int = 0, var limitSeconds: Int = Int.MAX_VALUE) {
     fun addOneSecond() {
         if (seconds == 59) {
             if (minutes == 59) {

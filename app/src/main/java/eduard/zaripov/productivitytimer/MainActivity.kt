@@ -5,12 +5,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.media.RingtoneManager
 import android.os.Bundle
 import android.support.v4.app.NotificationCompat
 import android.support.v7.app.AppCompatActivity
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
@@ -21,6 +21,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.flow.*
 
+
 class MainActivity : AppCompatActivity() {
     private lateinit var startButton: Button
     private lateinit var resetButton: Button
@@ -28,81 +29,88 @@ class MainActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var settingsButton: Button
 
-    val currentTime = Time()
-    var isTimerRunning = false
-    var isNotificationSend = false
+    private val currentTime = Timer()
+    private var isTimerRunning = false
+    private var isNotificationSend = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        startButton = findViewById(R.id.startButton)
-        resetButton = findViewById(R.id.resetButton)
+        progressBar = findViewById<ProgressBar>(R.id.progressBar).also {
+            it.visibility = View.INVISIBLE
+            it.indeterminateTintList = ColorStateList.valueOf(Color.GRAY)
+        }
+
         timeView = findViewById(R.id.textView)
-        settingsButton = findViewById(R.id.settingsButton)
-        progressBar = findViewById(R.id.progressBar)
-        progressBar.visibility = View.INVISIBLE
 
-        startButton.setOnClickListener {
-            progressBar.visibility = View.VISIBLE
-            resetButton.isEnabled = true
-            startButton.isEnabled = false
-            settingsButton.isEnabled = false
+        startButton = findViewById<Button>(R.id.startButton).also { button ->
+            button.setOnClickListener {
+                progressBar.visibility = View.VISIBLE
+                resetButton.isEnabled = true
+                startButton.isEnabled = false
+                settingsButton.isEnabled = false
 
-            CoroutineScope(IO).launch {
-                isTimerRunning = true
+                CoroutineScope(IO).launch {
+                    isTimerRunning = true
 
-                startTimer()
-                    .takeWhile {
-                        isTimerRunning
-                    }
-                    .onEach {
-                        timeView.text = it.toString()
-                        if (currentTime.isExceededLimit() && !isNotificationSend) {
-                            withContext(Dispatchers.Main) {
-                                timeView.setTextColor(Color.RED)
-                            }
-                            val intent = Intent(applicationContext, MainActivity::class.java)
-                            showNotification(applicationContext, "Timer!", "Time is up! ", intent, 1)
-                            isNotificationSend = true
+                    createTimerFlow()
+                        .takeWhile {
+                            isTimerRunning
                         }
-
-                    }
-                    .collect { }
+                        .onEach {
+                            timeView.text = it.toString()
+                            if (currentTime.isExceededLimit() && !isNotificationSend) {
+                                withContext(Dispatchers.Main) {
+                                    timeView.setTextColor(Color.RED)
+                                }
+                                val intent = Intent(applicationContext, MainActivity::class.java)
+                                showNotification(applicationContext, intent, 1)
+                                isNotificationSend = true
+                            }
+                        }
+                        .collect { }
+                }
             }
         }
 
-        resetButton.isEnabled = false
-        resetButton.setOnClickListener {
-            isTimerRunning = false
-            progressBar.visibility = View.INVISIBLE
+        resetButton = findViewById<Button>(R.id.resetButton).also {
+            it.isEnabled = false
+            it.setOnClickListener {
+                isTimerRunning = false
+                progressBar.visibility = View.INVISIBLE
 
-            currentTime.reset()
-            timeView.text = currentTime.toString()
-            timeView.setTextColor(Color.GRAY)
+                currentTime.reset()
+                timeView.text = currentTime.toString()
+                timeView.setTextColor(Color.GRAY)
 
-            isNotificationSend = false
+                isNotificationSend = false
 
-            startButton.isEnabled = true
-            settingsButton.isEnabled = true
-            resetButton.isEnabled = false
+                startButton.isEnabled = true
+                settingsButton.isEnabled = true
+                resetButton.isEnabled = false
+            }
         }
 
-        settingsButton.setOnClickListener {
-            val view = LayoutInflater.from(this).inflate(R.layout.alert_dialog_layout, null, false)
-            AlertDialog.Builder(this)
-                .setTitle("Set upper limit in seconds")
-                .setView(view)
-                .setPositiveButton(android.R.string.ok) { _, _ ->
-                    currentTime.limitSeconds =
-                        view.findViewById<EditText>(R.id.upperLimitEditText).text.toString().toInt()
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
+        settingsButton = findViewById<Button>(R.id.settingsButton).also {
+            it.setOnClickListener {
+                val view =
+                    LayoutInflater.from(this).inflate(R.layout.alert_dialog_layout, null, false)
+                AlertDialog.Builder(this)
+                    .setTitle("Set upper limit in seconds")
+                    .setView(view)
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                        currentTime.limitSeconds =
+                            view.findViewById<EditText>(R.id.upperLimitEditText).text.toString()
+                                .toInt()
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
         }
     }
 
-    private fun startTimer(): Flow<Time> = flow {
+    private fun createTimerFlow(): Flow<Timer> = flow {
         while (true) {
             currentTime.addOneSecond()
             delay(1000)
@@ -110,10 +118,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showNotification(context: Context, intent: Intent?, reqCode: Int) {
+        val title = "Timer!"
+        val message = "Time is up!"
 
-    fun showNotification(context: Context, title: String?, message: String?, intent: Intent?, reqCode: Int) {
         val pendingIntent = PendingIntent.getActivity(context, reqCode, intent, PendingIntent.FLAG_ONE_SHOT)
-        val channelId = "timeExceededChannel" // The id of the channel.
+
+        val channelId = "timeExceededChannel"
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
@@ -121,13 +132,9 @@ class MainActivity : AppCompatActivity() {
             .setAutoCancel(true)
             .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
             .setContentIntent(pendingIntent)
-        val notificationManager =
-            context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(
-            reqCode,
-            notificationBuilder.build()
-        ) // 0 is the request code, it should be unique id
-        Log.d("showNotification", "showNotification: $reqCode")
+
+        val notificationManager = context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(reqCode, notificationBuilder.build())
     }
 }
 

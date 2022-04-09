@@ -1,25 +1,25 @@
 package eduard.zaripov.productivitytimer
 
 import android.app.AlertDialog
-import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
-import android.content.res.ColorStateList
+import android.content.Intent
 import android.graphics.Color
+import android.media.RingtoneManager
 import android.os.Bundle
 import android.support.v4.app.NotificationCompat
 import android.support.v7.app.AppCompatActivity
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.*
-import kotlinx.coroutines.CoroutineScope
+import android.widget.Button
+import android.widget.EditText
+import android.widget.ProgressBar
+import android.widget.TextView
+import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.launch
-
-val CHANNEL_ID = "timeExceededChannel"
 
 class MainActivity : AppCompatActivity() {
     private lateinit var startButton: Button
@@ -43,44 +43,49 @@ class MainActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         progressBar.visibility = View.INVISIBLE
 
-        var flowOfTimer: Flow<Time>? = null
-
         startButton.setOnClickListener {
+            progressBar.visibility = View.VISIBLE
+            resetButton.isEnabled = true
+            startButton.isEnabled = false
+            settingsButton.isEnabled = false
+
             CoroutineScope(IO).launch {
                 isTimerRunning = true
-                flowOfTimer = startTimer()
-                flowOfTimer!!
+
+                startTimer()
                     .takeWhile {
                         isTimerRunning
                     }
                     .onEach {
                         timeView.text = it.toString()
                         if (currentTime.isExceededLimit() && !isNotificationSend) {
-                            timeView.setTextColor(Color.RED)
-                            showNotification(applicationContext)
+                            withContext(Dispatchers.Main) {
+                                timeView.setTextColor(Color.RED)
+                            }
+                            val intent = Intent(applicationContext, MainActivity::class.java)
+                            showNotification(applicationContext, "Timer!", "Time is up! ", intent, 1)
                             isNotificationSend = true
                         }
-                        if (progressBar.indeterminateTintList == ColorStateList.valueOf(Color.RED)) {
-                            progressBar.indeterminateTintList = ColorStateList.valueOf(Color.BLUE)
-                        } else {
-                            progressBar.indeterminateTintList = ColorStateList.valueOf(Color.RED)
-                        }
-                    }
 
-                    .collect {  }
+                    }
+                    .collect { }
             }
-            settingsButton.isEnabled = false
         }
 
+        resetButton.isEnabled = false
         resetButton.setOnClickListener {
             isTimerRunning = false
+            progressBar.visibility = View.INVISIBLE
 
             currentTime.reset()
             timeView.text = currentTime.toString()
             timeView.setTextColor(Color.GRAY)
 
             isNotificationSend = false
+
+            startButton.isEnabled = true
             settingsButton.isEnabled = true
+            resetButton.isEnabled = false
         }
 
         settingsButton.setOnClickListener {
@@ -103,28 +108,26 @@ class MainActivity : AppCompatActivity() {
             delay(1000)
             emit(currentTime)
         }
-    }.flowOn(IO)
+    }
 
 
-    private fun showNotification(context: Context) {
-        val name = "Notification"
-        val descriptionText = "Time exceeded"
-        val importance = NotificationManager.IMPORTANCE_HIGH
-        NotificationChannel(CHANNEL_ID, name, importance).apply {
-            description = descriptionText
-        }
-
-        val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
+    fun showNotification(context: Context, title: String?, message: String?, intent: Intent?, reqCode: Int) {
+        val pendingIntent = PendingIntent.getActivity(context, reqCode, intent, PendingIntent.FLAG_ONE_SHOT)
+        val channelId = "timeExceededChannel" // The id of the channel.
+        val notificationBuilder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Notification")
-            .setContentText("Time exceeded")
-            .setStyle(NotificationCompat.BigTextStyle())
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentTitle(title)
+            .setContentText(message)
             .setAutoCancel(true)
-
+            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
+            .setContentIntent(pendingIntent)
         val notificationManager =
-            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(1, notificationBuilder.build())
+            context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(
+            reqCode,
+            notificationBuilder.build()
+        ) // 0 is the request code, it should be unique id
+        Log.d("showNotification", "showNotification: $reqCode")
     }
 }
 

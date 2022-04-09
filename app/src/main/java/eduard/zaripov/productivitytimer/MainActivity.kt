@@ -7,13 +7,17 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.support.v4.app.NotificationCompat
 import android.support.v7.app.AppCompatActivity
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 
 val CHANNEL_ID = "timeExceededChannel"
 
@@ -28,31 +32,6 @@ class MainActivity : AppCompatActivity() {
     var isTimerRunning = false
     var isNotificationSend = false
 
-    val handler = Handler(Looper.getMainLooper())
-
-    private val addSecond: Runnable = object : Runnable {
-        override fun run() {
-            if (isTimerRunning) {
-                currentTime.addOneSecond()
-                if (currentTime.isExceededLimit() && !isNotificationSend) {
-                    timeView.setTextColor(Color.RED)
-                    showNotification(applicationContext)
-                    isNotificationSend = true
-                }
-
-                if (progressBar.indeterminateTintList == ColorStateList.valueOf(Color.RED)) {
-                    progressBar.indeterminateTintList = ColorStateList.valueOf(Color.BLUE)
-                } else {
-                    progressBar.indeterminateTintList = ColorStateList.valueOf(Color.RED)
-                }
-            }
-            timeView.text = currentTime.toString()
-
-            handler.postDelayed(this, 1000)
-        }
-    }
-
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -64,13 +43,42 @@ class MainActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         progressBar.visibility = View.INVISIBLE
 
+        var flowOfTimer: Flow<Time>? = null
+
         startButton.setOnClickListener {
-            runTimer()
+            CoroutineScope(IO).launch {
+                isTimerRunning = true
+                flowOfTimer = startTimer()
+                flowOfTimer!!
+                    .takeWhile {
+                        isTimerRunning
+                    }
+                    .onEach {
+                        timeView.text = it.toString()
+                        if (currentTime.isExceededLimit() && !isNotificationSend) {
+                            timeView.setTextColor(Color.RED)
+                            showNotification(applicationContext)
+                            isNotificationSend = true
+                        }
+                        if (progressBar.indeterminateTintList == ColorStateList.valueOf(Color.RED)) {
+                            progressBar.indeterminateTintList = ColorStateList.valueOf(Color.BLUE)
+                        } else {
+                            progressBar.indeterminateTintList = ColorStateList.valueOf(Color.RED)
+                        }
+                    }
+
+                    .collect {  }
+            }
             settingsButton.isEnabled = false
         }
 
         resetButton.setOnClickListener {
-            resetTimer()
+            isTimerRunning = false
+
+            currentTime.reset()
+            timeView.text = currentTime.toString()
+            timeView.setTextColor(Color.GRAY)
+
             isNotificationSend = false
             settingsButton.isEnabled = true
         }
@@ -89,26 +97,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun runTimer() {
-        if (!isTimerRunning) {
-            isTimerRunning = true
-            progressBar.visibility = View.VISIBLE
-            handler.postDelayed(addSecond, 1000)
+    private fun startTimer(): Flow<Time> = flow {
+        while (true) {
+            currentTime.addOneSecond()
+            delay(1000)
+            emit(currentTime)
         }
-    }
+    }.flowOn(IO)
 
-    private fun resetTimer() {
-        if (isTimerRunning) {
-            isTimerRunning = false
-            handler.removeCallbacks(addSecond)
-
-            progressBar.visibility = View.INVISIBLE
-
-            currentTime.reset()
-            timeView.setTextColor(Color.GRAY)
-            timeView.text = currentTime.toString()
-        }
-    }
 
     private fun showNotification(context: Context) {
         val name = "Notification"

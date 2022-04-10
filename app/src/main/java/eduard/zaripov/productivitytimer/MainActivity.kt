@@ -11,11 +11,13 @@ import android.view.View
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.flow.*
+import java.lang.NumberFormatException
 
 
 class MainActivity : AppCompatActivity() {
@@ -109,11 +111,20 @@ class MainActivity : AppCompatActivity() {
                 AlertDialog.Builder(this)
                     .setView(view)
                     .setPositiveButton(android.R.string.ok) { _, _ ->
-                        val newMinutes = view.findViewById<TextInputEditText>(R.id.upperLimitMinutesEditText).text.toString().toInt()
-                        val newSeconds = view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).text.toString().toInt()
-                        currentTime.updateTimer(newMinutes, newSeconds)
+                        try {
+                            val newMinutes =
+                                view.findViewById<TextInputEditText>(R.id.upperLimitMinutesEditText).text.toString()
+                                    .toInt()
+                            val newSeconds =
+                                view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).text.toString()
+                                    .toInt()
+                            currentTime.updateTimer(newMinutes, newSeconds)
 
-                        timeView.text = currentTime.toString()
+                            timeView.text = currentTime.toString()
+                        }
+                        catch (e: NumberFormatException) {
+                            Toast.makeText(this@MainActivity, "Please, input values!", Toast.LENGTH_SHORT).show()
+                        }
                     }
                     .setNegativeButton(android.R.string.cancel, null)
                     .show()

@@ -9,14 +9,15 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.media.RingtoneManager
 import android.os.Bundle
-import android.support.v4.app.NotificationCompat
-import android.support.v7.app.AppCompatActivity
+import android.text.InputFilter
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
-import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationCompat
+import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.flow.*
@@ -32,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private val currentTime = Timer()
     private var isTimerRunning = false
     private var isNotificationSend = false
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,17 +94,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        settingsButton = findViewById<Button>(R.id.settingsButton).also {
-            it.setOnClickListener {
+        settingsButton = findViewById<Button>(R.id.settingsButton).also { button ->
+            button.setOnClickListener {
                 val view =
                     LayoutInflater.from(this).inflate(R.layout.alert_dialog_layout, null, false)
+                view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).also {
+                    it.filters = arrayOf<InputFilter>(InputSecondsFilter(0, 59))
+                }
+
                 AlertDialog.Builder(this)
-                    .setTitle("Set upper limit in seconds")
                     .setView(view)
                     .setPositiveButton(android.R.string.ok) { _, _ ->
                         currentTime.limitSeconds =
-                            view.findViewById<EditText>(R.id.upperLimitEditText).text.toString()
-                                .toInt()
+                            view.findViewById<TextInputEditText>(R.id.upperLimitMinutesEditText).text.toString().toInt() * 60 +
+                            view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).text.toString().toInt()
                     }
                     .setNegativeButton(android.R.string.cancel, null)
                     .show()

@@ -1,6 +1,6 @@
 package eduard.zaripov.productivitytimer
 
-data class Timer(var minutes: Int = 0, var seconds: Int = 0) {
+data class Timer(private var minutes: Int = 0, private var seconds: Int = 0) {
     var currentMinutes: Int = minutes
     var currentSeconds: Int = seconds
     var isUp: Boolean = false
@@ -10,15 +10,11 @@ data class Timer(var minutes: Int = 0, var seconds: Int = 0) {
             if (currentMinutes == 0) {
                 isUp = true
             }
-            decreaseMinutes()
+            currentMinutes--
             currentSeconds = 59
         }
-        currentSeconds--
-    }
-
-    private fun decreaseMinutes() {
-        if (currentMinutes != 0) {
-            currentMinutes--
+        else {
+            currentSeconds--
         }
     }
 
@@ -28,5 +24,11 @@ data class Timer(var minutes: Int = 0, var seconds: Int = 0) {
         isUp = false
     }
 
-    override fun toString() = String.format("%02d:%02d", minutes, seconds)
+    fun updateTimer(minutes: Int, seconds: Int) {
+        this.minutes = minutes
+        this.seconds = seconds
+        reset()
+    }
+
+    override fun toString() = String.format("%02d:%02d", currentMinutes, currentSeconds)
 }

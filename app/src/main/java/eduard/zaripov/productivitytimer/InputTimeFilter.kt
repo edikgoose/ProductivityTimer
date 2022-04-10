@@ -6,7 +6,7 @@ import android.text.Spanned
 /**
  * Class for limit input value of seconds
  */
-class InputSecondsFilter(private var min: Int = 0, private var max: Int = 59) : InputFilter{
+class InputTimeFilter(private var min: Int = 0, private var max: Int = 59) : InputFilter{
     constructor(min: String, max: String) : this(min.toInt(), max.toInt())
 
     override fun filter(source: CharSequence, start: Int, end: Int, dest: Spanned, dstart: Int, dend: Int): CharSequence? {

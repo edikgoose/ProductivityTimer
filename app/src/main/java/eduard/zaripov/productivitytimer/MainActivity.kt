@@ -105,7 +105,10 @@ class MainActivity : AppCompatActivity() {
                 val view =
                     LayoutInflater.from(this).inflate(R.layout.alert_dialog_layout, null, false)
                 view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).also {
-                    it.filters = arrayOf<InputFilter>(InputSecondsFilter())
+                    it.filters = arrayOf<InputFilter>(InputTimeFilter())
+                }
+                view.findViewById<TextInputEditText>(R.id.upperLimitMinutesEditText).also {
+                    it.filters = arrayOf<InputFilter>(InputTimeFilter(max = 240)) // max 4 hours
                 }
 
                 AlertDialog.Builder(this)
@@ -139,6 +142,5 @@ class MainActivity : AppCompatActivity() {
             delay(1000)
         }
     }
-
 }
 

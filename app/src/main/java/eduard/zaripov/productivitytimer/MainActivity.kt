@@ -1,13 +1,9 @@
 package eduard.zaripov.productivitytimer
 
 import android.app.AlertDialog
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
-import android.media.RingtoneManager
 import android.os.Bundle
 import android.text.InputFilter
 import android.view.LayoutInflater
@@ -16,7 +12,6 @@ import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.NotificationCompat
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
@@ -32,8 +27,7 @@ class MainActivity : AppCompatActivity() {
 
     private val currentTime = Timer(0, 5)
     private var isTimerRunning = false
-    private var isTimerUp = false
-
+    private var isNotificationSent = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,26 +44,37 @@ class MainActivity : AppCompatActivity() {
 
         startButton = findViewById<Button>(R.id.startButton).also { button ->
             button.setOnClickListener {
+                currentTime.reset()
                 progressBar.visibility = View.VISIBLE
                 resetButton.isEnabled = true
                 startButton.isEnabled = false
                 settingsButton.isEnabled = false
+                progressBar.indeterminateTintList = ColorStateList.valueOf(Color.GRAY)
 
                 CoroutineScope(IO).launch {
                     isTimerRunning = true
 
                     createTimerFlow()
                         .takeWhile {
-                            if (it.isUp) {
+                            isTimerRunning
+                        }
+                        .onEach {
+                            if (it.isUp && isTimerRunning) {
                                 withContext(Dispatchers.Main) {
                                     timeView.setTextColor(Color.RED)
+                                    progressBar.indeterminateTintList =
+                                        ColorStateList.valueOf(Color.RED)
                                 }
-                                showNotification(applicationContext, Intent(applicationContext, MainActivity::class.java), 1)
-
-                            } else {
-                                timeView.text = it.toString()
+                                if (!isNotificationSent) {
+                                    NotificationSender.showNotification(
+                                        applicationContext,
+                                        Intent(applicationContext, MainActivity::class.java),
+                                        1
+                                    )
+                                    isNotificationSent = true
+                                }
                             }
-                            isTimerRunning && !it.isUp
+                            timeView.text = it.toString()
                         }
                         .collect { }
                 }
@@ -80,17 +85,16 @@ class MainActivity : AppCompatActivity() {
             it.isEnabled = false
             it.setOnClickListener {
                 isTimerRunning = false
+                isNotificationSent = false
                 progressBar.visibility = View.INVISIBLE
-
-                currentTime.reset()
-                timeView.text = currentTime.toString()
-                timeView.setTextColor(Color.GRAY)
-
-                isTimerUp = false
 
                 startButton.isEnabled = true
                 settingsButton.isEnabled = true
                 resetButton.isEnabled = false
+
+                currentTime.reset()
+                timeView.text = currentTime.toString()
+                timeView.setTextColor(Color.GRAY)
             }
         }
 
@@ -125,23 +129,5 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showNotification(context: Context, intent: Intent?, reqCode: Int) {
-        val title = "Timer!"
-        val message = "Time is up!"
-
-        val pendingIntent = PendingIntent.getActivity(context, reqCode, intent, PendingIntent.FLAG_ONE_SHOT)
-
-        val channelId = "timeExceededChannel"
-        val notificationBuilder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setAutoCancel(true)
-            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
-            .setContentIntent(pendingIntent)
-
-        val notificationManager = context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(reqCode, notificationBuilder.build())
-    }
 }
 

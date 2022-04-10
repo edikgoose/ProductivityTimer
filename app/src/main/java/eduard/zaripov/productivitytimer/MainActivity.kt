@@ -30,9 +30,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var settingsButton: Button
 
-    private val currentTime = Timer()
+    private val currentTime = Timer(10, 0)
     private var isTimerRunning = false
     private var isNotificationSend = false
+    private var isTimerUp = false
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,7 +45,9 @@ class MainActivity : AppCompatActivity() {
             it.indeterminateTintList = ColorStateList.valueOf(Color.GRAY)
         }
 
-        timeView = findViewById(R.id.textView)
+        timeView = findViewById<TextView>(R.id.textView).also {
+            it.text = currentTime.toString()
+        }
 
         startButton = findViewById<Button>(R.id.startButton).also { button ->
             button.setOnClickListener {
@@ -61,8 +64,7 @@ class MainActivity : AppCompatActivity() {
                             isTimerRunning
                         }
                         .onEach {
-                            timeView.text = it.toString()
-                            if (currentTime.isExceededLimit() && !isNotificationSend) {
+                            if (!isNotificationSend && isTimerUp) {
                                 withContext(Dispatchers.Main) {
                                     timeView.setTextColor(Color.RED)
                                 }
@@ -70,6 +72,8 @@ class MainActivity : AppCompatActivity() {
                                 showNotification(applicationContext, intent, 1)
                                 isNotificationSend = true
                             }
+                            timeView.text = it.toString()
+
                         }
                         .collect { }
                 }
@@ -87,6 +91,7 @@ class MainActivity : AppCompatActivity() {
                 timeView.setTextColor(Color.GRAY)
 
                 isNotificationSend = false
+                isTimerUp = false
 
                 startButton.isEnabled = true
                 settingsButton.isEnabled = true
@@ -99,15 +104,15 @@ class MainActivity : AppCompatActivity() {
                 val view =
                     LayoutInflater.from(this).inflate(R.layout.alert_dialog_layout, null, false)
                 view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).also {
-                    it.filters = arrayOf<InputFilter>(InputSecondsFilter(0, 59))
+                    it.filters = arrayOf<InputFilter>(InputSecondsFilter())
                 }
 
                 AlertDialog.Builder(this)
                     .setView(view)
                     .setPositiveButton(android.R.string.ok) { _, _ ->
-                        currentTime.limitSeconds =
-                            view.findViewById<TextInputEditText>(R.id.upperLimitMinutesEditText).text.toString().toInt() * 60 +
-                            view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).text.toString().toInt()
+                        currentTime.minutes = view.findViewById<TextInputEditText>(R.id.upperLimitMinutesEditText).text.toString().toInt()
+                        currentTime.seconds = view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).text.toString().toInt()
+                        timeView.text = currentTime.toString()
                     }
                     .setNegativeButton(android.R.string.cancel, null)
                     .show()
@@ -117,7 +122,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun createTimerFlow(): Flow<Timer> = flow {
         while (true) {
-            currentTime.addOneSecond()
+            if (!currentTime.decrease()) {
+                isTimerUp = true
+            }
+
             delay(1000)
             emit(currentTime)
         }

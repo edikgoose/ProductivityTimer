@@ -1,25 +1,31 @@
 package eduard.zaripov.productivitytimer
 
-data class Timer(var minutes: Int = 0, var seconds: Int = 0, var limitSeconds: Int = Int.MAX_VALUE) {
-    fun addOneSecond() {
-        if (seconds == 59) {
-            if (minutes == 59) {
-                reset()
-            } else {
-                minutes++
+data class Timer(var minutes: Int = 0, var seconds: Int = 0) {
+    var currentMinutes: Int = minutes
+    var currentSeconds: Int = seconds
+
+    public fun decrease(): Boolean {
+        if (currentSeconds == 0) {
+            if (currentMinutes == 0) {
+                return false
             }
-        } else {
-            seconds++
+            decreaseMinutes()
+            currentSeconds = 59
+        }
+        currentSeconds--
+        return true
+    }
+
+    private fun decreaseMinutes() {
+        if (currentMinutes != 0) {
+            currentMinutes--
         }
     }
 
-    fun isExceededLimit() = minutes * 60 + seconds > limitSeconds
-
     fun reset() {
-        minutes = 0
-        seconds = 0
+        currentMinutes = minutes
+        currentSeconds = seconds
     }
 
     override fun toString() = String.format("%02d:%02d", minutes, seconds)
-
 }

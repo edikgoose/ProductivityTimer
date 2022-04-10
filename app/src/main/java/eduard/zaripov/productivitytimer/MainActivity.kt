@@ -64,7 +64,7 @@ class MainActivity : AppCompatActivity() {
                             isTimerRunning
                         }
                         .onEach {
-                            if (!isNotificationSend && isTimerUp) {
+                            if (!isNotificationSend && currentTime.isUp) {
                                 withContext(Dispatchers.Main) {
                                     timeView.setTextColor(Color.RED)
                                 }
@@ -122,10 +122,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun createTimerFlow(): Flow<Timer> = flow {
         while (true) {
-            if (!currentTime.decrease()) {
-                isTimerUp = true
-            }
-
+            currentTime.decrease()
             delay(1000)
             emit(currentTime)
         }

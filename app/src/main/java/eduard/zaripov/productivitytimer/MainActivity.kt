@@ -8,139 +8,121 @@ import android.os.Bundle
 import android.text.InputFilter
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.Button
-import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.textfield.TextInputEditText
-import kotlinx.coroutines.*
-import kotlinx.coroutines.Dispatchers.IO
-import kotlinx.coroutines.flow.*
+import eduard.zaripov.productivitytimer.databinding.ActivityMainBinding
 import java.lang.NumberFormatException
 
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var startButton: Button
-    private lateinit var resetButton: Button
-    private lateinit var timeView: TextView
-    private lateinit var progressBar: ProgressBar
-    private lateinit var settingsButton: Button
-
-    private val currentTime = Timer(0, 5)
-    private var isTimerRunning = false
     private var isNotificationSent = false
+
+    private lateinit var binding: ActivityMainBinding
+    private val timerViewModel: TimerViewModel = TimerViewModel()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater).also { setContentView(it.root) }
+        setContentView(binding.root)
 
-        progressBar = findViewById<ProgressBar>(R.id.progressBar).also {
-            it.visibility = View.INVISIBLE
-            it.indeterminateTintList = ColorStateList.valueOf(Color.GRAY)
+        with(binding.progressBar) {
+            visibility = View.INVISIBLE
+            indeterminateTintList = ColorStateList.valueOf(Color.GRAY)
         }
 
-        timeView = findViewById<TextView>(R.id.textView).also {
-            it.text = currentTime.toString()
+        binding.startButton.setOnClickListener {
+            binding.progressBar.visibility = View.VISIBLE
+            changeStateOfButtons(startState = false, resetState = true, settingsState = false)
+            binding.progressBar.indeterminateTintList = ColorStateList.valueOf(Color.GRAY)
+
+            timerViewModel.startTimer()
         }
 
-        startButton = findViewById<Button>(R.id.startButton).also { button ->
-            button.setOnClickListener {
-                currentTime.reset()
-                progressBar.visibility = View.VISIBLE
-                resetButton.isEnabled = true
-                startButton.isEnabled = false
-                settingsButton.isEnabled = false
-                progressBar.indeterminateTintList = ColorStateList.valueOf(Color.GRAY)
-
-                CoroutineScope(IO).launch {
-                    isTimerRunning = true
-
-                    createTimerFlow()
-                        .takeWhile {
-                            isTimerRunning
-                        }
-                        .onEach {
-                            if (it.isUp && isTimerRunning) {
-                                withContext(Dispatchers.Main) {
-                                    timeView.setTextColor(Color.RED)
-                                    progressBar.indeterminateTintList =
-                                        ColorStateList.valueOf(Color.RED)
-                                }
-                                if (!isNotificationSent) {
-                                    NotificationSender.showNotification(
-                                        applicationContext,
-                                        Intent(applicationContext, MainActivity::class.java),
-                                        1
-                                    )
-                                    isNotificationSent = true
-                                }
-                            }
-                            timeView.text = it.toString()
-                        }
-                        .collect { }
-                }
-            }
-        }
-
-        resetButton = findViewById<Button>(R.id.resetButton).also {
+        binding.resetButton.also {
             it.isEnabled = false
             it.setOnClickListener {
-                isTimerRunning = false
-                isNotificationSent = false
-                progressBar.visibility = View.INVISIBLE
-
-                startButton.isEnabled = true
-                settingsButton.isEnabled = true
-                resetButton.isEnabled = false
-
-                currentTime.reset()
-                timeView.text = currentTime.toString()
-                timeView.setTextColor(Color.GRAY)
+                setDefaultStateOfUI()
+                timerViewModel.stopTimer()
             }
         }
 
-        settingsButton = findViewById<Button>(R.id.settingsButton).also { button ->
-            button.setOnClickListener {
-                val view =
-                    LayoutInflater.from(this).inflate(R.layout.alert_dialog_layout, null, false)
-                view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).also {
-                    it.filters = arrayOf<InputFilter>(InputTimeFilter())
-                }
-                view.findViewById<TextInputEditText>(R.id.upperLimitMinutesEditText).also {
-                    it.filters = arrayOf<InputFilter>(InputTimeFilter(max = 240)) // max 4 hours
-                }
+        binding.settingsButton.setOnClickListener {
+            createAlertDialog()
+        }
 
-                AlertDialog.Builder(this)
-                    .setView(view)
-                    .setPositiveButton(android.R.string.ok) { _, _ ->
-                        try {
-                            val newMinutes =
-                                view.findViewById<TextInputEditText>(R.id.upperLimitMinutesEditText).text.toString()
-                                    .toInt()
-                            val newSeconds =
-                                view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).text.toString()
-                                    .toInt()
-                            currentTime.updateTimer(newMinutes, newSeconds)
-
-                            timeView.text = currentTime.toString()
-                        }
-                        catch (e: NumberFormatException) {
-                            Toast.makeText(this@MainActivity, "Please, input values!", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
+        timerViewModel.timer.observe(this) { timer ->
+            if (timer >= 0) {
+                binding.timeView.text = secondsToString(timer)
+            }
+            else {
+                if (!isNotificationSent) {
+                    NotificationSender.showNotification(
+                        applicationContext,
+                        Intent(applicationContext, MainActivity::class.java),
+                        1
+                    )
+                    isNotificationSent = true
+                }
+                setTimerIsUpStateOfUI()
             }
         }
+
     }
 
-    private fun createTimerFlow(): Flow<Timer> = flow {
-        while (true) {
-            currentTime.decrease()
-            emit(currentTime)
-            delay(1000)
+    private fun createAlertDialog() {
+        val view =
+            LayoutInflater.from(this).inflate(R.layout.alert_dialog_layout, null, false)
+        view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).also {
+            it.filters = arrayOf<InputFilter>(InputTimeFilter())
         }
+        view.findViewById<TextInputEditText>(R.id.upperLimitMinutesEditText).also {
+            it.filters = arrayOf<InputFilter>(InputTimeFilter(max = 240)) // max 4 hours
+        }
+
+        AlertDialog.Builder(this)
+            .setView(view)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                try {
+                    val newMinutes =
+                        view.findViewById<TextInputEditText>(R.id.upperLimitMinutesEditText).text.toString()
+                            .toInt()
+                    val newSeconds =
+                        view.findViewById<TextInputEditText>(R.id.upperLimitSecondsEditText).text.toString()
+                            .toInt()
+                    timerViewModel.initialTime = newMinutes * 60 + newSeconds
+                    timerViewModel.updateTimer(newMinutes * 60 + newSeconds)
+                } catch (e: NumberFormatException) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Please, input values!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
+
+    private fun setTimerIsUpStateOfUI() {
+        binding.timeView.setTextColor(Color.RED)
+        binding.progressBar.indeterminateTintList =
+            ColorStateList.valueOf(Color.RED)
+    }
+
+    private fun setDefaultStateOfUI() {
+        isNotificationSent = false
+        binding.timeView.setTextColor(Color.GRAY)
+        binding.progressBar.visibility = View.INVISIBLE
+        changeStateOfButtons(startState = true, resetState = false, settingsState = true)
+    }
+
+    private fun changeStateOfButtons(startState: Boolean, resetState: Boolean, settingsState: Boolean) {
+        binding.startButton.isEnabled = startState
+        binding.resetButton.isEnabled = resetState
+        binding.settingsButton.isEnabled = settingsState
+    }
+
+    private fun secondsToString(seconds: Int) = String.format("%02d:%02d", seconds / 60, seconds % 60)
 }
 

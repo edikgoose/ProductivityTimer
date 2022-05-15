@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:layout_margin="5dp"
+    android:layout_margin="12dp"
     android:theme="@style/Theme.ProductivityTimer">
 
     <com.google.android.material.textfield.TextInputLayout
@@ -15,8 +15,10 @@
         android:layout_margin="5dp">
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/upperLimitMinutesEditText"
+        android:fontFamily="casual"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center"
         android:inputType="numberSigned" />
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -27,6 +29,8 @@
         android:layout_margin="5dp">
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/upperLimitSecondsEditText"
+            android:gravity="center"
+            android:fontFamily="casual"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="numberSigned" />
